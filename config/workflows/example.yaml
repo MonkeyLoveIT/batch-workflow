@@ -1,0 +1,95 @@
+# Example workflow demonstrating task dependencies and notifications
+#
+# Workflow description:
+#   Task1 (脚本准备) -> Task2, Task3 (并行执行) -> Task4 (汇总通知)
+#
+# This demonstrates:
+#   - Task dependency (depends_on)
+#   - Parallel execution (Task2 and Task3 run concurrently after Task1)
+#   - Notifications at different stages
+#   - Retry mechanism
+
+name: "示例工作流"
+description: "展示任务依赖、并行执行和通知功能"
+
+# Global workflow settings
+config:
+  max_workers: 4  # Maximum parallel tasks
+  stop_on_failure: false
+
+# Notification configuration
+notifications:
+  - event: workflow_start
+    plugin: wechat_work
+    config:
+      webhook_url: "${WECOM_WEBHOOK_URL}"
+      message: "🚀 工作流开始: {workflow_name}"
+
+  - event: task_failure
+    plugin: wechat_work
+    config:
+      webhook_url: "${WECOM_WEBHOOK_URL}"
+      message: "❌ 任务失败: {task_id}"
+
+  - event: workflow_complete
+    plugin: wechat_work
+    config:
+      webhook_url: "${WECOM_WEBHOOK_URL}"
+      message: "✅ 工作流完成: {workflow_name}"
+
+tasks:
+  # ===== Task 1: 准备阶段 =====
+  - id: task1
+    name: "准备数据"
+    plugin: command
+    config:
+      cmd: echo
+      args: ["Preparing data..."]
+    notify_on:
+      - start
+      - success
+      - failure
+
+  # ===== Task 2 & 3: 并行执行 (依赖 Task1) =====
+  - id: task2
+    name: "执行任务A"
+    plugin: command
+    config:
+      cmd: sleep
+      args: ["2"]
+    depends_on:
+      - task1
+    notify_on:
+      - failure
+
+  - id: task3
+    name: "执行任务B"
+    plugin: command
+    config:
+      cmd: sleep
+      args: ["1"]
+    depends_on:
+      - task1
+    notify_on:
+      - failure
+
+  # ===== Task 4: 汇总阶段 (依赖 Task2 和 Task3) =====
+  - id: task4
+    name: "汇总结果"
+    plugin: command
+    config:
+      cmd: echo
+      args: ["All tasks completed!"]
+    depends_on:
+      - task2
+      - task3
+    notify_on:
+      - success
+
+# ===== DAG 结构 =====
+#
+#     task1
+#    /    \
+# task2    task3
+#    \    /
+#     task4

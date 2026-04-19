@@ -1,0 +1,38 @@
+name: trsysdysa
+tasks:
+- config: {}
+  depends_on: []
+  id: task_1776505001608
+  name: 新任务sdfd
+  plugin: command
+- config: {}
+  depends_on:
+  - task_1776505001608
+  id: task_1776592633917
+  name: s新任务
+  plugin: exec_flow
+- config: {}
+  depends_on:
+  - task_1776592633917
+  - task_1776592935832
+  - task_1776593024115
+  id: task_1776592892746
+  name: 新任务111
+  plugin: exec_flow
+- config: {}
+  depends_on:
+  - task_1776505001608
+  id: task_1776592935832
+  name: 新任务
+  plugin: http
+- config: {}
+  depends_on: []
+  id: task_1776593024115
+  name: 新任务123123
+  plugin: exec_flow
+- config: {}
+  depends_on:
+  - task_1776592633917
+  id: task_1776593285018
+  name: 新任务rgrga
+  plugin: exec_flow
