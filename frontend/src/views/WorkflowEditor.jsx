@@ -13,14 +13,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useQueryClient } from '@tanstack/react-query'
-import { createWorkflow, updateWorkflow, listWorkflows, listFolders } from '../api'
-
-const PLUGIN_OPTIONS = [
-  { value: 'command', label: '命令行' },
-  { value: 'script', label: '脚本' },
-  { value: 'exec_flow', label: '执行任务' },
-  { value: 'http', label: 'HTTP请求' },
-]
+import { createWorkflow, updateWorkflow, listWorkflows, listFolders, getPluginTypes } from '../api'
 
 function TaskNode({ data, selected }) {
   const label = data.label || data.id
@@ -192,6 +185,15 @@ function WorkflowEditorContent({ workflow, onBack }) {
     queryFn: listFolders,
     staleTime: Infinity,
   })
+
+  // Get plugin types from API
+  const { data: pluginTypesData } = useQuery({
+    queryKey: ['pluginTypes'],
+    queryFn: getPluginTypes,
+    staleTime: Infinity,
+  })
+
+  const pluginOptions = pluginTypesData?.task || []
 
   // Flatten folders for select options
   const flattenFolders = (folders, prefix = '') => {
@@ -495,7 +497,7 @@ function WorkflowEditorContent({ workflow, onBack }) {
           <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem' }}>
             点击添加任务节点
           </p>
-          {PLUGIN_OPTIONS.map((opt) => (
+          {pluginOptions.map((opt) => (
             <div
               key={opt.value}
               className="palette-item"
@@ -549,7 +551,7 @@ function WorkflowEditorContent({ workflow, onBack }) {
                   value={selectedNode.data.plugin}
                   onChange={(e) => handleUpdateNode('plugin', e.target.value)}
                 >
-                  {PLUGIN_OPTIONS.map((opt) => (
+                  {pluginOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
