@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.models.database import init_db
-from backend.api import workflow, history, execute, plugins
+from backend.api import workflow, history, execute, plugins, tools
 
 # Initialize database
 init_db()
@@ -37,6 +37,7 @@ app.include_router(workflow.router)
 app.include_router(history.router)
 app.include_router(execute.router)
 app.include_router(plugins.router)
+app.include_router(tools.router)
 
 
 @app.get("/")

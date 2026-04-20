@@ -13,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useQueryClient } from '@tanstack/react-query'
-import { createWorkflow, updateWorkflow, listWorkflows, listFolders, getPluginTypes } from '../api'
+import { createWorkflow, updateWorkflow, listWorkflows, listFolders, getPluginTypes, getToolSchema } from '../api'
 
 function TaskNode({ data, selected }) {
   const label = data.label || data.id
@@ -173,6 +173,7 @@ function WorkflowEditorContent({ workflow, onBack }) {
   const [folder, setFolder] = useState(workflow?.folder || '')
   const [newFolderName, setNewFolderName] = useState('')
   const [selectedNode, setSelectedNode] = useState(null)
+  const [currentToolSchema, setCurrentToolSchema] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [nodes, setNodes, onNodesChange] = useNodesState(getInitialNodes())
   const [edges, setEdges, onEdgesChange] = useEdgesState(getInitialEdges())
@@ -332,6 +333,20 @@ function WorkflowEditorContent({ workflow, onBack }) {
 
   const handleUpdateNode = (field, value) => {
     if (!selectedNode) return
+
+    // If plugin changes, fetch tool schema if it's a tool type
+    if (field === 'plugin' && value.startsWith('tool:')) {
+      const toolName = value.replace('tool:', '')
+      getToolSchema(toolName).then(schema => {
+        setCurrentToolSchema(schema)
+      }).catch(err => {
+        console.error('Failed to load tool schema:', err)
+        setCurrentToolSchema(null)
+      })
+    } else if (field === 'plugin' && !value.startsWith('tool:')) {
+      setCurrentToolSchema(null)
+    }
+
     setNodes((nds) =>
       nds.map((node) =>
         node.id === selectedNode.id
@@ -558,6 +573,50 @@ function WorkflowEditorContent({ workflow, onBack }) {
                   ))}
                 </select>
               </div>
+              {/* Tool parameters form */}
+              {currentToolSchema && currentToolSchema.parameters && currentToolSchema.parameters.length > 0 && (
+                <div className="form-group">
+                  <label>参数配置</label>
+                  {currentToolSchema.parameters.map((param) => (
+                    <div key={param.name} style={{ marginBottom: '8px' }}>
+                      <label style={{ fontSize: '0.85rem', color: '#666' }}>
+                        {param.description || param.name}
+                        {param.required && <span style={{ color: 'red' }}> *</span>}
+                      </label>
+                      {param.type === 'bool' ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.[param.name] || false}
+                          onChange={(e) => {
+                            const newConfig = { ...selectedNode.data.config, [param.name]: e.target.checked }
+                            handleUpdateNode('config', newConfig)
+                          }}
+                        />
+                      ) : param.type === 'int' ? (
+                        <input
+                          type="number"
+                          value={selectedNode.data.config?.[param.name] ?? param.default ?? ''}
+                          onChange={(e) => {
+                            const newConfig = { ...selectedNode.data.config, [param.name]: e.target.value }
+                            handleUpdateNode('config', newConfig)
+                          }}
+                          placeholder={param.default?.toString() || ''}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={selectedNode.data.config?.[param.name] ?? param.default ?? ''}
+                          onChange={(e) => {
+                            const newConfig = { ...selectedNode.data.config, [param.name]: e.target.value }
+                            handleUpdateNode('config', newConfig)
+                          }}
+                          placeholder={param.default?.toString() || ''}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="form-group">
                 <label>依赖任务</label>
                 <div style={{ fontSize: '0.9rem', color: '#666' }}>

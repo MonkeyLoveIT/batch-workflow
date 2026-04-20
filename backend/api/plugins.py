@@ -10,6 +10,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import plugins
 from core.plugin import PluginRegistry
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from backend.api import tools as tools_api
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -24,11 +28,22 @@ def get_plugin_types():
     """Get all available plugin types grouped by category."""
     all_plugins = PluginRegistry.list_plugins()
 
+    # Get built-in task plugins
+    task_plugins = [
+        {"value": p, "label": _get_plugin_label(p)}
+        for p in all_plugins if p in TASK_PLUGINS
+    ]
+
+    # Discover tools and add them as task types
+    discovered_tools = tools_api.discover_tools()
+    for tool in discovered_tools:
+        task_plugins.append({
+            "value": f"tool:{tool['name']}",
+            "label": f"🔧 {tool['name']}",
+        })
+
     return {
-        "task": [
-            {"value": p, "label": _get_plugin_label(p)}
-            for p in all_plugins if p in TASK_PLUGINS
-        ],
+        "task": task_plugins,
         "notification": [
             {"value": p, "label": _get_plugin_label(p)}
             for p in all_plugins if p in NOTIFICATION_PLUGINS
@@ -40,6 +55,9 @@ def get_plugin_types():
         "all": [
             {"value": p, "label": _get_plugin_label(p)}
             for p in all_plugins
+        ] + [
+            {"value": f"tool:{t['name']}", "label": f"🔧 {t['name']}"}
+            for t in discovered_tools
         ]
     }
 

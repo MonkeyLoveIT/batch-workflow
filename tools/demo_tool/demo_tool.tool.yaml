@@ -1,0 +1,20 @@
+name: demo_tool
+description: 示例工具 - 演示工具注册功能
+parameters:
+  - name: message
+    type: string
+    required: true
+    description: 要显示的消息
+    flag: -m
+  - name: count
+    type: int
+    required: false
+    default: 1
+    description: 重复次数
+    flag: -n
+  - name: verbose
+    type: bool
+    required: false
+    default: false
+    description: 详细输出
+    flag: -v
