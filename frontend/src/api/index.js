@@ -45,6 +45,7 @@ export const getPluginTypes = () => api.get('/plugins/types').then(r => r.data)
 export const listPlugins = () => api.get('/plugins/list').then(r => r.data)
 
 // History APIs
+export const listExecutions = (workflowId) => {
   const params = workflowId ? { workflow_id: workflowId } : {}
   return api.get('/history', { params }).then(r => r.data)
 }
