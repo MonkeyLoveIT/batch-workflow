@@ -188,6 +188,54 @@ function WorkflowListView({ onEdit, onNew }) {
 
   // Flatten tree for rendering with visibility state
   const [collapsedPaths, setCollapsedPaths] = useState(new Set())
+  const [rootCollapsed, setRootCollapsed] = useState(false)
+
+  // Get all workflow IDs in a folder (including subfolders)
+  const getWorkflowIdsInFolder = (folderPath, includeSubfolders = true) => {
+    const ids = []
+    const addIds = (path) => {
+      const wfs = workflowsByFolder[path] || []
+      wfs.forEach(w => ids.push(w.id))
+    }
+    addIds(folderPath)
+    if (includeSubfolders) {
+      const addSubfolderIds = (node) => {
+        node.children.forEach(child => {
+          addIds(child.path)
+          addSubfolderIds(child)
+        })
+      }
+      const folderNode = folderTree.find(f => f.path === folderPath)
+      if (folderNode) addSubfolderIds(folderNode)
+    }
+    return ids
+  }
+
+  // Check if all workflows in a folder are selected
+  const isFolderFullySelected = (folderPath) => {
+    const ids = getWorkflowIdsInFolder(folderPath)
+    return ids.length > 0 && ids.every(id => selectedIds.has(id))
+  }
+
+  // Check if some workflows in a folder are selected
+  const isFolderPartiallySelected = (folderPath) => {
+    const ids = getWorkflowIdsInFolder(folderPath)
+    return ids.some(id => selectedIds.has(id)) && !ids.every(id => selectedIds.has(id))
+  }
+
+  // Toggle folder selection
+  const toggleFolderSelection = (folderPath) => {
+    const ids = getWorkflowIdsInFolder(folderPath)
+    const newSet = new Set(selectedIds)
+    if (isFolderFullySelected(folderPath)) {
+      // Deselect all
+      ids.forEach(id => newSet.delete(id))
+    } else {
+      // Select all
+      ids.forEach(id => newSet.add(id))
+    }
+    setSelectedIds(newSet)
+  }
 
   const toggleCollapse = (path) => {
     const newSet = new Set(collapsedPaths)
@@ -242,12 +290,17 @@ function WorkflowListView({ onEdit, onNew }) {
               setContextMenu({ x: e.clientX, y: e.clientY, node })
             }}
           >
-            <td style={{ paddingLeft: `${indent}px`, width: '24px' }}>
-              <span style={{ fontSize: '12px', color: '#666' }}>
-                {isCollapsed ? '▶' : '▼'}
-              </span>
+            <td style={{ paddingLeft: `${indent}px`, width: '36px' }}>
+              <input
+                type="checkbox"
+                checked={isFolderFullySelected(node.path)}
+                ref={(el) => { if (el) el.indeterminate = isFolderPartiallySelected(node.path) }}
+                onChange={() => toggleFolderSelection(node.path)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
             </td>
-            <td style={{ paddingLeft: '4px' }}>
+            <td style={{ paddingLeft: '4px', width: '36px' }}>
               <span style={{ fontSize: '14px' }}>📁</span>
             </td>
             <td colSpan={4} style={{ padding: '8px 0' }}>
@@ -276,7 +329,7 @@ function WorkflowListView({ onEdit, onNew }) {
               onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
             >
-              <td style={{ paddingLeft: `${indent + 24}px`, width: '24px' }}>
+              <td style={{ paddingLeft: `${indent + 24}px`, width: '36px' }}>
                 <input
                   type="checkbox"
                   checked={selectedIds.has(wf.id)}
@@ -291,6 +344,7 @@ function WorkflowListView({ onEdit, onNew }) {
                     setSelectedIds(newSet)
                   }}
                   onClick={(e) => e.stopPropagation()}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                 />
               </td>
               <td style={{ paddingLeft: '4px' }}>
@@ -397,7 +451,14 @@ function WorkflowListView({ onEdit, onNew }) {
       for (const wf of workflows.filter(w => selectedIds.has(w.id))) {
         const resp = await fetch(`/api/workflows/export/${wf.id}`)
         const data = await resp.json()
-        zip.file(`${wf.name}.yaml`, data.yaml)
+        // Add folder metadata to the yaml
+        const folderPath = wf.folder || ''
+        if (folderPath) {
+          // Prepend folder path to filename
+          zip.file(`${folderPath}/${wf.name}.yaml`, data.yaml)
+        } else {
+          zip.file(`${wf.name}.yaml`, data.yaml)
+        }
       }
       const blob = await zip.generateAsync({ type: 'blob' })
       const url = URL.createObjectURL(blob)
@@ -443,10 +504,12 @@ function WorkflowListView({ onEdit, onNew }) {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredRootWorkflows.length) {
+    if (selectedIds.size === workflows.length) {
+      // Deselect all
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredRootWorkflows.map(w => w.id)))
+      // Select all
+      setSelectedIds(new Set(workflows.map(w => w.id)))
     }
   }
 
@@ -487,8 +550,14 @@ function WorkflowListView({ onEdit, onNew }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
         <thead>
           <tr style={{ background: '#f5f5f5' }}>
-            <th style={{ padding: '10px 8px', width: '24px', textAlign: 'left' }}>
-              <input type="checkbox" checked={selectedIds.size === filteredRootWorkflows.length && filteredRootWorkflows.length > 0} onChange={toggleSelectAll} />
+            <th style={{ padding: '10px 8px', width: '36px', textAlign: 'left' }}>
+              <input
+                type="checkbox"
+                checked={selectedIds.size === workflows.length && workflows.length > 0}
+                ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < workflows.length }}
+                onChange={toggleSelectAll}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
             </th>
             <th style={{ padding: '10px 8px', width: '24px' }}></th>
             <th style={{ padding: '10px 8px', textAlign: 'left' }}>名称</th>
@@ -500,6 +569,7 @@ function WorkflowListView({ onEdit, onNew }) {
         <tbody>
           {/* Root folder header */}
           <tr style={{ background: '#fafafa', cursor: 'pointer' }}
+            onClick={() => setRootCollapsed(!rootCollapsed)}
             onDragOver={(e) => {
               e.preventDefault()
               if (dragSourceId) setDragOverId('__root__')
@@ -522,15 +592,24 @@ function WorkflowListView({ onEdit, onNew }) {
               setContextMenu({ x: e.clientX, y: e.clientY, node: { path: '', name: '根目录' } })
             }}
           >
-            <td style={{ padding: '8px', width: '24px' }}></td>
-            <td style={{ padding: '8px' }}>📁</td>
-            <td colSpan={4} style={{ padding: '8px' }}>
-              <span style={{ fontWeight: 500 }}>根目录</span>
+            <td style={{ paddingLeft: '0px', width: '36px' }}>
+              <input
+                type="checkbox"
+                checked={isFolderFullySelected('')}
+                ref={(el) => { if (el) el.indeterminate = isFolderPartiallySelected('') }}
+                onChange={() => toggleFolderSelection('')}
+                onClick={(e) => e.stopPropagation()}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+            </td>
+            <td style={{ paddingLeft: '4px' }}>📁</td>
+            <td colSpan={4} style={{ padding: '8px 0' }}>
+              <span style={{ fontWeight: 500, fontSize: '14px' }}>根目录</span>
               <span style={{ marginLeft: '12px', color: '#999', fontSize: '12px' }}>({rootWorkflows.length} 个工作流)</span>
             </td>
           </tr>
           {/* Root workflows */}
-          {filteredRootWorkflows.map(wf => (
+          {!rootCollapsed && filteredRootWorkflows.map(wf => (
             <tr
               key={wf.id}
               draggable
@@ -542,7 +621,7 @@ function WorkflowListView({ onEdit, onNew }) {
               onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
             >
-              <td style={{ padding: '8px 8px 8px 32px', width: '24px' }}>
+              <td style={{ padding: '8px 8px 8px 24px', width: '36px' }}>
                 <input
                   type="checkbox"
                   checked={selectedIds.has(wf.id)}
@@ -551,6 +630,7 @@ function WorkflowListView({ onEdit, onNew }) {
                     e.target.checked ? newSet.add(wf.id) : newSet.delete(wf.id)
                     setSelectedIds(newSet)
                   }}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                 />
               </td>
               <td style={{ padding: '8px' }}>📄</td>

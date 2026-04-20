@@ -255,14 +255,29 @@ async def import_workflow(
     if not config.get("tasks"):
         raise HTTPException(status_code=400, detail="Workflow tasks are required")
 
-    # Check for duplicate name
-    existing = db.query(Workflow).filter(Workflow.name == config["name"]).first()
+    # Get folder from config, default to empty
+    folder = config.get("folder", "")
+
+    # Check for duplicate name within same folder
+    existing = db.query(Workflow).filter(
+        Workflow.name == config["name"],
+        Workflow.folder == folder
+    ).first()
     if existing:
-        raise HTTPException(status_code=400, detail=f"Workflow with name '{config['name']}' already exists")
+        raise HTTPException(status_code=400, detail=f"Workflow with name '{config['name']}' already exists in folder '{folder or 'root'}")
+
+    # Create folder if it doesn't exist
+    if folder:
+        existing_folder = db.query(Folder).filter(Folder.path == folder).first()
+        if not existing_folder:
+            new_folder = Folder(path=folder)
+            db.add(new_folder)
+            db.commit()
 
     workflow = Workflow(
         name=config["name"],
         description=config.get("description", ""),
+        folder=folder,
         config=config,
     )
     db.add(workflow)
@@ -274,6 +289,7 @@ async def import_workflow(
     return {
         "id": workflow.id,
         "name": workflow.name,
+        "folder": workflow.folder,
         "message": "Workflow imported successfully",
     }
 
@@ -285,10 +301,13 @@ def export_workflow(workflow_id: int, db: Session = Depends(get_db)):
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    yaml_content = yaml.dump(workflow.config, allow_unicode=True, default_flow_style=False)
+    # Add folder to config for export
+    export_config = {**workflow.config, "folder": workflow.folder or ""}
+    yaml_content = yaml.dump(export_config, allow_unicode=True, default_flow_style=False)
 
     return {
         "name": workflow.name,
+        "folder": workflow.folder or "",
         "yaml": yaml_content,
     }
 
